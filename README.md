@@ -102,3 +102,88 @@ curl -X POST http://localhost:8000/api/login/ -d "email=user@example.com&passwor
 
 # Exemple de demande de réinitialisation de mot de passe
 curl -X POST http://localhost:8000/api/request-password-reset/ -d "email=user@example.com"
+```
+
+## Configuations requises
+*settings.py*
+```python
+INSTALLED_APPS = [
+    ...
+    # corsheader
+    'corsheaders',
+	  # rest-framework
+    'rest_framework',
+    'rest_framework_simplejwt',
+    'drf_yasg',
+	  # allauth
+    'django.contrib.sites',
+    # local app
+    ...
+    
+]
+
+MIDDLEWARE = [
+    ...
+    'corsheaders.middleware.CorsMiddleware',
+    'allauth.account.middleware.AccountMiddleware',
+    ...
+]
+
+
+# rest-framework
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+}
+
+# Optional: JWT settings
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=10),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': False,
+
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'VERIFYING_KEY': None,
+    'AUDIENCE': None,
+    'ISSUER': None,
+
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type',
+
+    'JTI_CLAIM': 'jti',
+}
+
+# cors headers
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://192.168.1.101:3000"
+]
+CORS_ALLOW_CREDENTIALS = True
+
+# send email
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_USE_TLS = True
+EMAIL_PORT = 587
+EMAIL_HOST_USER = 'EMAIL_HOST_USER'
+EMAIL_HOST_PASSWORD = 'EMAIL_HOST_PASSWORD'
+
+AUTH_USER_MODEL = "accounts.CustomUserModel"
+
+
+#GOOGLE AUTH
+GOOGLE_CLIENT_ID = 'GOOGLE_CLIENT_ID'
+GOOGLE_CLIENT_SECRET = 'GOOGLE_CLIENT_SECRET'
+GOOGLE_REDIRECT_URI = 'GOOGLE_REDIRECT_URI'
+```
+
