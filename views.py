@@ -2,10 +2,8 @@
 from django.conf import settings
 from django.contrib.auth.tokens import default_token_generator
 from django.contrib.auth import get_user_model
-from django.core.mail import EmailMultiAlternatives, send_mail
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.html import strip_tags
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes
 from django.utils.crypto import get_random_string
@@ -15,6 +13,8 @@ import requests
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
+
+from accounts.utils import send_activation_email, send_password_reset_email
 # Local imports
 from .models import CustomUserModel
 from .serializers import (
@@ -32,6 +32,9 @@ class UserRegistrationView(generics.CreateAPIView):
     queryset = CustomUserModel.objects.all()
     serializer_class = UserRegistrationSerializer
 
+    def create(self, request, *args, **kwargs):
+        return Response({'message': 'Activation email has been sent successfully.'}, status=status.HTTP_201_CREATED)
+
     def perform_create(self, serializer):
         user = serializer.save()
 
@@ -47,10 +50,11 @@ class UserRegistrationView(generics.CreateAPIView):
         # Send email with OTP and activation link
         send_activation_email(user.email, otp_code, activation_link)
 
-        return Response({'message': 'Activation email has been sent successfully.'}, status=status.HTTP_200_OK)
-
 class EmailValidateRequestView(generics.CreateAPIView):
     serializer_class = EmailValidateRequestSerializer
+
+    def create(self, request, *args, **kwargs):
+        return Response({"message": "New OTP sent successfully."}, status=status.HTTP_201_CREATED)
 
     def perform_create(self, serializer):
         email = serializer.validated_data['email']
@@ -70,7 +74,6 @@ class EmailValidateRequestView(generics.CreateAPIView):
         activation_link = self.request.build_absolute_uri(reverse('activate-account')) + f'?otp={otp_code}&email={user.email}'
         send_activation_email(user.email, otp_code, activation_link)
 
-        return Response({"message": "New OTP sent successfully."}, status=status.HTTP_200_OK)
 
 class ActivateAccountView(generics.GenericAPIView):
     serializer_class = OTPVerificationSerializer
@@ -247,6 +250,9 @@ class SetPasswordView(generics.UpdateAPIView):
 class PasswordResetRequestView(generics.CreateAPIView):
     serializer_class = PasswordResetRequestSerializer
 
+    def create(self, request, *args, **kwargs):
+        return Response({"message": "Password reset email has been sent successfully."}, status=status.HTTP_200_OK)
+
     def perform_create(self, serializer):
         email = serializer.validated_data['email']
 
@@ -264,8 +270,6 @@ class PasswordResetRequestView(generics.CreateAPIView):
         # Send password reset email with token link
         reset_link = self.request.build_absolute_uri(reverse('password-reset-confirm', kwargs={'uidb64': urlsafe_base64_encode(force_bytes(user.pk)), 'token': token}))
         send_password_reset_email(user.email, reset_link)
-
-        return Response({"message": "Password reset email has been sent successfully."}, status=status.HTTP_200_OK)
 
 class PasswordResetConfirmView(generics.UpdateAPIView):
     serializer_class = PasswordResetConfirmSerializer
@@ -291,131 +295,3 @@ class PasswordResetConfirmView(generics.UpdateAPIView):
             return Response({"message": "Password has been reset successfully."}, status=status.HTTP_200_OK)
         else:
             return Response({"error": "Invalid token. Please request a new password reset."}, status=status.HTTP_400_BAD_REQUEST)
-
-
-
-
-def send_password_reset_email(email, reset_link):
-    subject = 'Password Reset Request'
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Password Reset Request</title>
-        <style>
-            body {{
-                background-color: #f3f4f6;
-                font-family: Arial, sans-serif;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                height: 100vh;
-                marging: 0 auto;
-            }}
-            .container {{
-                max-width: 600px;
-                padding: 20px;
-                background-color: #ffffff;
-                border: 1px solid #ccc;
-                border-radius: 8px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                text-align: center;
-            }}
-            .btn {{
-                display: inline-block;
-                padding: 10px 20px;
-                background-color: #007bff;
-                color: #fff;
-                text-decoration: none;
-                border-radius: 3px;
-                margin-top: 20px;
-                font-size: 1.2rem;
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h2 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 1rem;">Password Reset Request</h2>
-            <p>Hello,</p>
-            <p>We received a request to reset your password. Click the button below to proceed:</p>
-            <a href="{reset_link}" class="btn">Reset Password</a>
-            <p style="margin-top: 20px;">If you did not request this, you can safely ignore this email.</p>
-            <p>Regards,<br>The X-TECH Team</p>
-        </div>
-    </body>
-    </html>
-    """
-    text_content = strip_tags(html_content)  # Strip the HTML tags to get the text version
-    email = EmailMultiAlternatives(subject, text_content, from_email=settings.EMAIL_HOST_USER, to=[email])
-    email.attach_alternative(html_content, "text/html")
-    email.send()
-
-def send_activation_email(email, otp_code, activation_link):
-    subject = 'Activate Your Account'
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Activate Your Account</title>
-        <style>
-            body {{
-                background-color: #f3f4f6;
-                font-family: Arial, sans-serif;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                height: 100vh;
-                margin: 0;
-            }}
-            .container {{
-                max-width: 600px;
-                padding: 20px;
-                background-color: #ffffff;
-                border: 1px solid #ccc;
-                border-radius: 8px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                text-align: center;
-                marging: 0 auto;
-            }}
-            .btn {{
-                display: inline-block;
-                padding: 10px 20px;
-                background-color: #007bff;
-                color: #fff;
-                text-decoration: none;
-                border-radius: 3px;
-                margin-top: 20px;
-                font-size: 1.2rem;
-
-            }}
-            .otp-code {{
-                font-size: 2rem;
-                font-weight: 600;
-                margin-top: 1.3rem;
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h2 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 1rem;">Activate Your Account</h2>
-            <p>Hello,</p>
-            <p>Thank you for registering with X-TECH. Your OTP for account activation is:</p>
-            <p class="otp-code">{otp_code}</p>
-            <hr style="margin: 20px 0;">
-            or
-            <hr style="margin: 20px 0;">
-            <a href="{activation_link}" class="btn">Activate Account</a>
-            <p style="margin-top: 20px;">This OTP is valid for 3 hours.</p>
-            <p>Regards,<br>The X-TECH Team</p>
-        </div>
-    </body>
-    </html>
-    """
-    text_content = strip_tags(html_content)  # Strip the HTML tags to get the text version
-    email = EmailMultiAlternatives(subject, text_content, from_email=settings.EMAIL_HOST_USER, to=[email])
-    email.attach_alternative(html_content, "text/html")
-    email.send()
